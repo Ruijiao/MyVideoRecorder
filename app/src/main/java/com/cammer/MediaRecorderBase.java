@@ -3,10 +3,10 @@ package com.cammer;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.content.Context;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
@@ -23,8 +23,20 @@ import java.util.List;
  * Created by Fang Ruijiao on 2016/10/11.
  */
 
-public class MediaRecorderBase implements SurfaceHolder.Callback {
+public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera.PreviewCallback,IMediaRecorder {
     protected final String TAG = "FRJ";
+    /** 未知错误 */
+    public static final int MEDIA_ERROR_UNKNOWN = 1;
+    /** 预览画布设置错误 */
+    public static final int MEDIA_ERROR_CAMERA_SET_PREVIEW_DISPLAY = 101;
+    /** 预览错误 */
+    public static final int MEDIA_ERROR_CAMERA_PREVIEW = 102;
+    /** 自动对焦错误 */
+    public static final int MEDIA_ERROR_CAMERA_AUTO_FOCUS = 103;
+    /** 录制错误监听 */
+    protected OnErrorListener mOnErrorListener;
+    /** 录制已经准备就绪的监听 */
+    protected OnPreparedListener mOnPreparedListener;
 
     protected Activity mCon;
     /** 摄像头对象 */
@@ -96,9 +108,7 @@ public class MediaRecorderBase implements SurfaceHolder.Callback {
             mCamera.setPreviewDisplay(mSurfaceHolder);
             mCamera.startPreview();
             previewRunning = true;
-        }
-        catch (IOException e) {
-            Log.e(TAG,e.getMessage());
+        }catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -128,6 +138,9 @@ public class MediaRecorderBase implements SurfaceHolder.Callback {
             try {
                 mCamera.setPreviewDisplay(mSurfaceHolder);
             } catch (IOException e) {
+                if (mOnErrorListener != null) {
+                    mOnErrorListener.onVideoError(MEDIA_ERROR_CAMERA_SET_PREVIEW_DISPLAY, 0);
+                }
                 e.printStackTrace();
             }
 
@@ -139,8 +152,12 @@ public class MediaRecorderBase implements SurfaceHolder.Callback {
             mCamera.startPreview();
 
             onStartPreviewSuccess();
+            if (mOnPreparedListener != null)mOnPreparedListener.onPrepared();
         } catch (Exception e) {
             e.printStackTrace();
+            if (mOnErrorListener != null) {
+                mOnErrorListener.onVideoError(MEDIA_ERROR_CAMERA_PREVIEW, 0);
+            }
         }
     }
 
@@ -303,6 +320,9 @@ public class MediaRecorderBase implements SurfaceHolder.Callback {
                 mCamera.autoFocus(cb);
                 return true;
             } catch (Exception e) {
+                if (mOnErrorListener != null) {
+                    mOnErrorListener.onVideoError(MEDIA_ERROR_CAMERA_AUTO_FOCUS, 0);
+                }
                 e.printStackTrace();
             }
         }
@@ -390,5 +410,51 @@ public class MediaRecorderBase implements SurfaceHolder.Callback {
             return true;
         else
             return false;
+    }
+
+    @Override
+    public void onPreviewFrame(byte[] data, Camera camera) {
+        camera.addCallbackBuffer(data);
+    }
+
+    /** 设置错误监听 */
+    public void setOnErrorListener(OnErrorListener l) {
+        mOnErrorListener = l;
+    }
+
+    /** 设置预处理监听 */
+    public void setOnPreparedListener(OnPreparedListener l) {
+        mOnPreparedListener = l;
+    }
+
+    /**
+     * 预处理监听
+     */
+    public interface OnPreparedListener {
+        /**
+         * 预处理完毕，可以开始录制了
+         */
+        void onPrepared();
+    }
+
+    /**
+     * 错误监听
+     */
+    public interface OnErrorListener {
+        /**
+         * 视频录制错误
+         *
+         * @param what
+         * @param extra
+         */
+        void onVideoError(int what, int extra);
+
+        /**
+         * 音频录制错误
+         *
+         * @param what
+         * @param message
+         */
+        void onAudioError(int what, String message);
     }
 }

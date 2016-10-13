@@ -22,7 +22,7 @@ import java.io.IOException;
  * Created by Fang Ruijiao on 2016/10/12.
  */
 
-public class MediaRecorderSystem extends MediaRecorderBase{
+public class MediaRecorderSystem extends MediaRecorderBase implements android.media.MediaRecorder.OnErrorListener{
 
     private MediaRecorder mMediaRecorder;
 
@@ -30,6 +30,7 @@ public class MediaRecorderSystem extends MediaRecorderBase{
         super(con, surfaceHolder);
     }
 
+    @Override
     public boolean startRecording(String filePath){
         try {
             if (mMediaRecorder == null) {
@@ -93,6 +94,7 @@ public class MediaRecorderSystem extends MediaRecorderBase{
     /**
      * 停止拍摄，则：
      */
+    @Override
     public void stopRecording(){
         if (mMediaRecorder != null) {
             //设置后不会崩
@@ -116,6 +118,20 @@ public class MediaRecorderSystem extends MediaRecorderBase{
                 e.printStackTrace();
             }
         }
+    }
+
+    @Override
+    public void onError(MediaRecorder mr, int what, int extra) {
+        try {
+            if (mr != null)
+                mr.reset();
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+           e.printStackTrace();
+        }
+        if (mOnErrorListener != null)
+            mOnErrorListener.onVideoError(what, extra);
     }
 
     private void save() {
@@ -181,4 +197,5 @@ public class MediaRecorderSystem extends MediaRecorderBase{
             e.printStackTrace();
         }
     }
+
 }
