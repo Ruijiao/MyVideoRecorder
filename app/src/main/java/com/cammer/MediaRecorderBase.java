@@ -12,10 +12,13 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.widget.Toast;
 
+import com.tools.SortComparator;
 import com.tools.ToolsCammer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -57,7 +60,9 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
     /** 帧率 */
     protected int mFrameRate = MIN_FRAME_RATE;
 
+    // 3:2
     protected int previewW = 640,previewH = 480;
+    protected List<Camera.Size> previewSizes = new ArrayList<>();
 
     public MediaRecorderBase(Activity con,SurfaceHolder surfaceHolder){
         mCon = con;
@@ -89,17 +94,7 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
             mCamera.stopPreview();
         }
         Camera.Parameters p = mCamera.getParameters();
-//        List<Camera.Size> list = p.getSupportedPreviewSizes();
-//        List<Camera.Size> list = p.getSupportedPreviewSizes();
-//        for(Camera.Size size : list){
-//            if(size.height / 9.0 * 16 == size.width){
-//                previewH = size.height;
-//                previewW = size.width;
-//                Log.i("FRJ","previewH:" + previewH);
-//                Log.i("FRJ","previewW:" + previewW);
-//            }
-//        }
-        p.setPreviewSize(previewW,previewH);// 16:9
+        p.setPreviewSize(previewW,previewH);
         p.setPreviewFormat(ImageFormat.NV21);
         mCamera.setParameters(p);
 
@@ -114,12 +109,15 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
 
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
-        mCamera.stopPreview();
         previewRunning = false;
-        mCamera.release();
+        if(mCamera != null){
+            mCamera.stopPreview();
+            mCamera.release();
+        }
     }
 
     /** 开始预览 */
+    @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     public void startPreview() {
         if (mStartPreview || mSurfaceHolder == null)
             return;
@@ -147,6 +145,7 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
             mParameters = mCamera.getParameters();
             prepareCameraParaments();
             mCamera.setParameters(mParameters);
+            mParameters.setRecordingHint(true);
             setPreviewCallback();
             mCamera.startPreview();
 
@@ -214,16 +213,21 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
         // mParameters.setPreviewFpsRange(15 * 1000, 20 * 1000);
         //TODO
         List<Camera.Size> list = mParameters.getSupportedPreviewSizes();
-        int previewW = 640,previewH = 480;
-//		for(Size size : list){
-//			if(size.height / 9 * 16 == size.width){
-//				previewH = size.height;
-//				previewW = size.width;
-//				Log.i("FRJ","previewH:" + previewH);
-//				Log.i("FRJ","previewW:" + previewW);
-//			}
-//		}
-        mParameters.setPreviewSize(previewW,previewH);// 3:2
+        if(list != null && list.size() > 0){
+            Comparator comp = new SortComparator();
+            Collections.sort(list,comp);
+            for(Camera.Size size : list){
+                if(size.height / 9 * 16 == size.width){
+                    previewH = size.height;
+                    previewW = size.width;
+                    previewSizes.add(size);
+                }
+            }
+        }
+
+        // 设置surfaceView分辨率
+        mSurfaceHolder.setFixedSize(previewW, previewH);
+        mParameters.setPreviewSize(previewW,previewH);
 
         // 设置输出视频流尺寸，采样率
         mParameters.setPreviewFormat(ImageFormat.NV21);

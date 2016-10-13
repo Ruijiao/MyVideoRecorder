@@ -85,4 +85,5 @@ public class ToolsCammer {
     public static String trim(String str) {
         return str == null ? EMPTY : str.trim();
     }
+
 }

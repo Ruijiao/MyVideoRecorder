@@ -85,10 +85,6 @@ public class MainActivity extends Activity implements View.OnClickListener {
         }
         if(bitmap != null) mXiangceIv.setImageBitmap(bitmap);
 
-        // 设置surfaceView分辨率
-        mSurfaceView.getHolder().setFixedSize(800, 480);
-
-
         mActionChb.setOnClickListener(this);
         mRecordSwitchIv.setOnClickListener(this);
         mXiangceIv.setOnClickListener(this);
@@ -132,11 +128,10 @@ public class MainActivity extends Activity implements View.OnClickListener {
                         if(ff < 10){
                             strF = "0" + ff;
                         }
-                        mTimeTv.setText(strF + ":" + strS);
+                        if(isStar) mTimeTv.setText(strF + ":" + strS);
                         break;
                     case 2:
-                        mCountdownTv.setVisibility(View.VISIBLE);
-                        mCountdownTv.setText("" + msg.arg1);
+                        if(isStar)mCountdownTv.setText("" + msg.arg1);
                         break;
                     case 3:
                         stopCamera();
@@ -152,7 +147,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
     private void initSurfaceView() {
         final int h = ToolsCammer.getScreenHeight(this);
         int height = h;
-        int width = h / 3 * 4;
+        int width = h / 9 * 16;
         //
         RelativeLayout.LayoutParams lp = (RelativeLayout.LayoutParams) mSurfaceView.getLayoutParams();
         lp.width = width;
@@ -202,69 +197,77 @@ public class MainActivity extends Activity implements View.OnClickListener {
         isActionRecorder = true;
         isStar = true;
         String parentPath = Environment.getExternalStorageDirectory().getPath() + "/videoDemo/";
-        long currentTime = System.currentTimeMillis();
-        String path = parentPath + currentTime + ".mp4";
-        boolean isStarSuccess= mediaRecorderSystem.startRecording(path);
-        if(isStarSuccess){
-            uploadDishData = new UploadDishData();
-            uploadDishData.setVideoAddTime(currentTime);
-            uploadDishData.setVideoPath(path);
-        }else{
-            uploadDishData = null;
-        }
-        mRecordLed.setVisibility(View.GONE);
-        findViewById(R.id.a_video_recorder_time_margin_view).setVisibility(View.GONE);
-        findViewById(R.id.a_video_recorder_action_point).setVisibility(View.VISIBLE);
-        new Thread(new Runnable() {
+        final long currentTime = System.currentTimeMillis();
+        final String path = parentPath + currentTime + ".mp4";
+        mediaRecorderSystem.startRecording(path, new MediaRecorderSystem.OnRecorderCallback() {
             @Override
-            public void run() {
-                int time = 0;
-                while (isStar){
-                    if(maxTimeS - time <= 0){
-                        handler.sendEmptyMessage(3);
-                        break;
+            public void onStarSucess() {
+                uploadDishData = new UploadDishData();
+                uploadDishData.setVideoAddTime(currentTime);
+                uploadDishData.setVideoPath(path);
+                mRecordLed.setVisibility(View.GONE);
+                findViewById(R.id.a_video_recorder_time_margin_view).setVisibility(View.GONE);
+                findViewById(R.id.a_video_recorder_action_point).setVisibility(View.VISIBLE);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        int time = 0;
+                        while (isStar){
+                            if(maxTimeS - time <= 0){
+                                handler.sendEmptyMessage(3);
+                                break;
+                            }
+                            if(maxTimeS - time <= countdownS){
+                                Message message = new Message();
+                                message.arg1 = maxTimeS - time;
+                                message.what = 2;
+                                handler.sendMessage(message);
+                            }
+                            Message message = new Message();
+                            message.arg1 = time;
+                            message.what = 1;
+                            handler.sendMessage(message);
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                            time ++;
+                        }
                     }
-                    if(maxTimeS - time <= countdownS){
-                        Message message = new Message();
-                        message.arg1 = maxTimeS - time;
-                        message.what = 2;
-                        handler.sendMessage(message);
-                    }
-                    Message message = new Message();
-                    message.arg1 = time;
-                    message.what = 1;
-                    handler.sendMessage(message);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    time ++;
-                }
+                }).start();
             }
-        }).start();
+
+            @Override
+            public void onStarFail() {
+                resetAll();
+                Toast.makeText(MainActivity.this,"录制异常",Toast.LENGTH_SHORT).show();
+                return;
+            }
+        });
     }
 
     private void stopCamera(){
-        resetAll();
+        mediaRecorderSystem.stopRecording();
+        Toast.makeText(MainActivity.this,"已保存",Toast.LENGTH_SHORT).show();
         if(uploadDishData != null){
             Bitmap bitmap = ToolsCammer.getFrameAtTime(uploadDishData.getVideoPath());
             mXiangceIv.setImageBitmap(bitmap);
             uploadDishSqlite.insert(uploadDishData);
         }
+        resetAll();
     }
 
     private void resetAll(){
         isStar = false;
         isActionRecorder = false;
+        uploadDishData = null;
         mActionChb.setChecked(false);
         mRecordLed.setVisibility(View.VISIBLE);
         findViewById(R.id.a_video_recorder_time_margin_view).setVisibility(View.VISIBLE);
         findViewById(R.id.a_video_recorder_action_point).setVisibility(View.INVISIBLE);
-        mCountdownTv.setVisibility(View.GONE);
-        Toast.makeText(MainActivity.this,"已保存",Toast.LENGTH_SHORT).show();
+        mCountdownTv.setText("");
         mTimeTv.setText("00:00");
-        mediaRecorderSystem.stopRecording();
     }
 
     /**
@@ -321,5 +324,12 @@ public class MainActivity extends Activity implements View.OnClickListener {
         }
 
         return true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mediaRecorderSystem.releaseMediaRecorder();
+        mediaRecorderSystem.releaseCamera();
     }
 }

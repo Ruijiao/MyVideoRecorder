@@ -5,6 +5,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
+import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.media.MediaScannerConnection;
@@ -18,6 +19,8 @@ import android.view.SurfaceHolder;
 import java.io.File;
 import java.io.IOException;
 
+import static android.media.CamcorderProfile.get;
+
 /**
  * Created by Fang Ruijiao on 2016/10/12.
  */
@@ -25,14 +28,24 @@ import java.io.IOException;
 public class MediaRecorderSystem extends MediaRecorderBase implements android.media.MediaRecorder.OnErrorListener{
 
     private MediaRecorder mMediaRecorder;
+    private OnRecorderCallback mCallback;
+    private boolean isOk = false;
 
     public MediaRecorderSystem(Activity con, SurfaceHolder surfaceHolder) {
         super(con, surfaceHolder);
     }
 
     @Override
-    public boolean startRecording(String filePath){
+    public void startRecording(String filePath,OnRecorderCallback callback){
+        mCallback = callback;
+        startRecoding(filePath,0);
+    }
+
+    private void startRecoding(String filePath,int index){
         try {
+            if(index >= previewSizes.size()){
+                mCallback.onStarFail();
+            }
             if (mMediaRecorder == null) {
                 mMediaRecorder = new MediaRecorder();
             } else {
@@ -41,22 +54,28 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
             mCamera.unlock();
 
             mMediaRecorder.setCamera(mCamera);
-            mMediaRecorder.setPreviewDisplay(mSurfaceHolder.getSurface()); // 预览
             mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA); // 视频源
             mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); // 输出格式为mp4
             //设置视频输出的格式
-            CamcorderProfile mProfile = CamcorderProfile.get(CamcorderProfile.QUALITY_480P);
+            CamcorderProfile mProfile = get(CamcorderProfile.QUALITY_HIGH);
+            if(CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_1080P)) {
+
+            }
             if (mProfile.videoBitRate > 2 * 1024 * 1024)
                 mMediaRecorder.setVideoEncodingBitRate(2 * 1024 * 1024);
             else
                 mMediaRecorder.setVideoEncodingBitRate(mProfile.videoBitRate);
             mMediaRecorder.setVideoFrameRate(mProfile.videoFrameRate);// 视频帧频率
 
+            Camera.Size size = previewSizes.get(index);
+            previewW = size.width;
+            previewH = size.height;
+
             mMediaRecorder.setVideoSize(previewW, previewH);// 视频尺寸
             Log.i(TAG,"setVideoSize previewW:" + previewW);
             Log.i(TAG,"setVideoSize previewH:" + previewH);
-
             mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);// 视频编码
+
 
 //            mMediaRecorder.setMaxDuration(maxDurationInMs);
 
@@ -66,29 +85,31 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
             }
 //            Log.i(TAG,"filePath:" + filePath);
 //            Log.i(TAG,"save Path:" + tempFile.getPath());
-            mMediaRecorder.setOutputFile(filePath);
 
-//            mMediaRecorder.setPreviewDisplay(mSurfaceHolder.getSurface());
+            mMediaRecorder.setOutputFile(filePath);
+            mMediaRecorder.setPreviewDisplay(mSurfaceHolder.getSurface()); // 预览
 //
 //            mMediaRecorder.setMaxFileSize(maxFileSizeInBytes);
 
             mMediaRecorder.prepare();
             mMediaRecorder.start();
-
-            return true;
+            isOk = true;
+            mCallback.onStarSucess();
         } catch (IllegalStateException e) {
-            Log.e(TAG,e.getMessage());
             e.printStackTrace();
-            return false;
+            exception(filePath,index);
         } catch (IOException e) {
-            Log.e(TAG,e.getMessage());
             e.printStackTrace();
-            return false;
+            exception(filePath,index);
         }catch (Exception e){
             e.printStackTrace();
-            stopRecording();
-            return false;
+            exception(filePath,index);
         }
+    }
+
+    private void exception(String filePath,int index){
+        releaseMediaRecorder();
+        startRecoding(filePath,++ index);
     }
 
     /**
@@ -134,6 +155,22 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
             mOnErrorListener.onVideoError(what, extra);
     }
 
+    public void releaseMediaRecorder(){
+        if (mMediaRecorder != null) {
+            mMediaRecorder.reset();   // clear recorder configuration
+            mMediaRecorder.release(); // release the recorder object
+            mMediaRecorder = null;
+            mCamera.lock();           // lock camera for later use
+        }
+    }
+
+    public void releaseCamera(){
+        if (mCamera != null){
+            mCamera.release();        // release the camera for other applications
+            mCamera = null;
+        }
+    }
+
     private void save() {
         String path = Environment.getExternalStorageDirectory().getPath() + "/videoDemo/mm.mp4";
         //添加到相册
@@ -158,7 +195,6 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
     {
         ContentValues localContentValues = new ContentValues();
         localContentValues.put("title", paramFile.getName());
-        Log.i("FRJ","getVideoContentValues() name:" + paramFile.getName());
         localContentValues.put("_display_name", paramFile.getName());
         localContentValues.put("mime_type", "video/mp4");
         localContentValues.put("datetaken", Long.valueOf(paramLong));
@@ -176,7 +212,6 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
         int actual_image_column_index = actualimagecursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA);
         actualimagecursor.moveToFirst();
         String img_path = actualimagecursor.getString(actual_image_column_index);
-//		Log.i("FRJ","img_path:" + img_path);
         File file = new File(img_path);
         return file.getParentFile().getAbsolutePath();
     }
@@ -196,6 +231,11 @@ public class MediaRecorderSystem extends MediaRecorderBase implements android.me
         }catch (Exception e){
             e.printStackTrace();
         }
+    }
+
+    public interface OnRecorderCallback{
+        public void onStarSucess();
+        public void onStarFail();
     }
 
 }
