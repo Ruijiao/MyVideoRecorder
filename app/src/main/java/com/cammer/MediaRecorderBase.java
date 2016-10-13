@@ -6,14 +6,13 @@ import android.app.Activity;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
-import android.media.MediaRecorder;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.widget.Toast;
 
-import com.tools.ToolsDevice;
+import com.tools.ToolsCammer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -249,7 +248,7 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
         //		mParameters.set("recording-hint", "false");
         //
         //		mParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-        if (!ToolsDevice.isDevice("GT-N7100", "GT-I9308", "GT-I9300")) {
+        if (!ToolsCammer.isDevice("GT-N7100", "GT-I9308", "GT-I9300")) {
             mParameters.set("cam_mode", 1);
             mParameters.set("cam-mode", 1);
         }
@@ -302,7 +301,7 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
     @SuppressLint("NewApi")
     @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     public boolean manualFocus(Camera.AutoFocusCallback cb, List<Camera.Area> focusAreas) {
-        if (mCamera != null && focusAreas != null && mParameters != null && ToolsDevice.hasICS()) {
+        if (mCamera != null && focusAreas != null && mParameters != null && ToolsCammer.hasICS()) {
             try {
                 mCamera.cancelAutoFocus();
                 // getMaxNumFocusAreas检测设备是否支持
@@ -448,13 +447,5 @@ public abstract class MediaRecorderBase implements SurfaceHolder.Callback,Camera
          * @param extra
          */
         void onVideoError(int what, int extra);
-
-        /**
-         * 音频录制错误
-         *
-         * @param what
-         * @param message
-         */
-        void onAudioError(int what, String message);
     }
 }

@@ -3,6 +3,8 @@ package com.tools;
 import android.content.Context;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.media.MediaMetadataRetriever;
 import android.os.Build;
 import android.view.Display;
 import android.view.WindowManager;
@@ -11,7 +13,7 @@ import android.view.WindowManager;
  * Created by Fang Ruijiao on 2016/10/11.
  */
 
-public class ToolsDevice {
+public class ToolsCammer {
 
     public static final String EMPTY = "";
 
@@ -57,6 +59,13 @@ public class ToolsDevice {
     public static int getScreenHeight(Context context) {
         Display display = ((WindowManager) context.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
         return display.getHeight();
+    }
+
+    public static Bitmap getFrameAtTime(String filePath) {
+        MediaMetadataRetriever media = new MediaMetadataRetriever();
+        media.setDataSource(filePath);
+        Bitmap bitmap = media.getFrameAtTime();
+        return bitmap;
     }
 
     /**

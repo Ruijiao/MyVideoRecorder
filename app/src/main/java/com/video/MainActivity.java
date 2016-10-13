@@ -2,6 +2,7 @@ package com.video;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.hardware.Camera;
 import android.os.Build;
@@ -21,8 +22,11 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.cammer.MediaRecorderBase;
 import com.cammer.MediaRecorderSystem;
-import com.tools.ToolsDevice;
+import com.data.UploadDishData;
+import com.data.UploadDishSqlite;
+import com.tools.ToolsCammer;
 
 import java.util.ArrayList;
 
@@ -34,6 +38,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
     private SurfaceView mSurfaceView;
     private SurfaceHolder mSurfaceHolder;
     private MediaRecorderSystem mediaRecorderSystem;
+    private MediaRecorderBase.OnErrorListener onErrorListener;
 
     private ImageView mXiangceIv, mRecordSwitchIv;
     private CheckBox mActionChb, mRecordLed;
@@ -44,6 +49,9 @@ public class MainActivity extends Activity implements View.OnClickListener {
     private Handler handler;
 
     private int maxTimeS = 10 + 1,countdownS = 3;
+
+    private UploadDishSqlite uploadDishSqlite;
+    private UploadDishData uploadDishData;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +65,8 @@ public class MainActivity extends Activity implements View.OnClickListener {
     }
 
     private void init() {
+        uploadDishSqlite = new UploadDishSqlite(this);
+
         mRecordLed = (CheckBox) findViewById(R.id.a_video_recorder_led);
         mSurfaceView = (SurfaceView) findViewById(R.id.a_video_recorder_surfaceview);
         mSurfaceHolder = mSurfaceView.getHolder();
@@ -66,6 +76,14 @@ public class MainActivity extends Activity implements View.OnClickListener {
         mRecordSwitchIv = (ImageView) findViewById(R.id.a_video_recorder_switcher);
         mTimeTv = (TextView) findViewById(R.id.a_video_recorder_time);
         mCountdownTv = (TextView) findViewById(R.id.a_video_recorder_number);
+
+        //设置
+        UploadDishData data = uploadDishSqlite.selectOrderByAddTime();
+        Bitmap bitmap = null;
+        if(data != null){
+            bitmap = ToolsCammer.getFrameAtTime(data.getVideoPath());
+        }
+        if(bitmap != null) mXiangceIv.setImageBitmap(bitmap);
 
         // 设置surfaceView分辨率
         mSurfaceView.getHolder().setFixedSize(800, 480);
@@ -78,6 +96,22 @@ public class MainActivity extends Activity implements View.OnClickListener {
         mSurfaceView.setOnTouchListener(mOnSurfaveViewTouchListener);
 
         mediaRecorderSystem = new MediaRecorderSystem(this, mSurfaceHolder);
+        onErrorListener = new MediaRecorderBase.OnErrorListener() {
+            @Override
+            public void onVideoError(int what, int extra) {
+                switch(what){
+                    /** 预览画布设置错误 */
+                    case MediaRecorderSystem.MEDIA_ERROR_CAMERA_SET_PREVIEW_DISPLAY:
+                    /** 预览错误 */
+                    case MediaRecorderSystem.MEDIA_ERROR_CAMERA_PREVIEW:
+                    /** 自动对焦错误 */
+                    case MediaRecorderSystem.MEDIA_ERROR_CAMERA_AUTO_FOCUS:
+                        resetAll();
+                        break;
+
+                }
+            }
+        };
 
         handler = new Handler() {
 
@@ -85,6 +119,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
                 switch (msg.what){
                     case 1:
                         int ss = msg.arg1;
+                        if(uploadDishData != null) uploadDishData.setVideoLongTime(ss);
                         int ff = 0;
                         if(ss > 59){
                             ff = ss / 60;
@@ -115,7 +150,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
     /** 初始化画布 */
     private void initSurfaceView() {
-        final int h = ToolsDevice.getScreenHeight(this);
+        final int h = ToolsCammer.getScreenHeight(this);
         int height = h;
         int width = h / 3 * 4;
         //
@@ -149,7 +184,6 @@ public class MainActivity extends Activity implements View.OnClickListener {
                 } else {
                     stopCamera();
                 }
-                isActionRecorder = !isActionRecorder;
                 break;
             case R.id.a_video_recorder_play_ce:
                 Toast.makeText(MainActivity.this, "相册", Toast.LENGTH_SHORT).show();
@@ -165,10 +199,19 @@ public class MainActivity extends Activity implements View.OnClickListener {
 //                Toast.makeText(MainActivity.this,"播放完毕",Toast.LENGTH_SHORT).show();
 //            }
 //        });
+        isActionRecorder = true;
         isStar = true;
-        String path = Environment.getExternalStorageDirectory().getPath() + "/videoDemo/";
-        String key = String.valueOf(System.currentTimeMillis()) + ".mp4";
-        mediaRecorderSystem.startRecording(path + key);
+        String parentPath = Environment.getExternalStorageDirectory().getPath() + "/videoDemo/";
+        long currentTime = System.currentTimeMillis();
+        String path = parentPath + currentTime + ".mp4";
+        boolean isStarSuccess= mediaRecorderSystem.startRecording(path);
+        if(isStarSuccess){
+            uploadDishData = new UploadDishData();
+            uploadDishData.setVideoAddTime(currentTime);
+            uploadDishData.setVideoPath(path);
+        }else{
+            uploadDishData = null;
+        }
         mRecordLed.setVisibility(View.GONE);
         findViewById(R.id.a_video_recorder_time_margin_view).setVisibility(View.GONE);
         findViewById(R.id.a_video_recorder_action_point).setVisibility(View.VISIBLE);
@@ -203,6 +246,15 @@ public class MainActivity extends Activity implements View.OnClickListener {
     }
 
     private void stopCamera(){
+        resetAll();
+        if(uploadDishData != null){
+            Bitmap bitmap = ToolsCammer.getFrameAtTime(uploadDishData.getVideoPath());
+            mXiangceIv.setImageBitmap(bitmap);
+            uploadDishSqlite.insert(uploadDishData);
+        }
+    }
+
+    private void resetAll(){
         isStar = false;
         isActionRecorder = false;
         mActionChb.setChecked(false);

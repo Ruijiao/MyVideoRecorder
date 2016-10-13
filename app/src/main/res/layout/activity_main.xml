@@ -38,8 +38,8 @@
 
         <ImageView
             android:id="@+id/a_video_recorder_play_ce"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="@dimen/dp_48"
+            android:layout_height="@dimen/dp_48"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="@dimen/dp_19"
             android:layout_centerHorizontal="true"
